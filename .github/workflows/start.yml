@@ -8,11 +8,21 @@ jobs:
   welcome:
     runs-on: ubuntu-latest
     steps:
-      - name: Create onboarding issue & post next-step instructions
+      - name: Welcome to the workshop, let’s get started!
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GH_PAT_CROSSREPO }}
           script: |
+            // Load helpers
+            let githubHelpers;
+            const { data } = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: '.github/scripts/github-helpers.js'
+            });
+            eval(Buffer.from(data.content, 'base64').toString());
+            const helpers = githubHelpers;
+
             const FORKER    = context.actor;
             const UPSTREAM  = context.repo.owner + '/' + context.repo.repo;
             const FORK_REPO = context.payload.forkee.full_name;
@@ -38,18 +48,35 @@ jobs:
             Fork repo: \`${FORK_REPO}\`
             Fork sha:  \`${FORK_SHA}\`
 
-            Thank you for forking the repository and getting started with the workshop!
+            Thank you for forking the repository and getting started with the workshop! 
+            *Forking* means that you created a copy of the original workshop repository, whereas a *repository* is the central project folder in GitHub. 
+            
+            The **Cheat Sheet** in the repository gives a quick overview of the key terms on GitHub and their core functions.
+            
+            Currently, you are in an *issue*, which is a way to track tasks, ideas, or bugs within a specific repository.
 
-            In this issue we track your progress throughout the workshop.
-            Every time you reply with \`/done NUMBER\` this list gets updated:
+            If you have a problem, a suggestion for improvement, or cool ideas during the workshop, please open an issue: https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new
 
-            - [x] 1. Created GitHub account
-            - [x] 2. Fork GitHub repo
-            - [ ] 3. Activate issues in your fork
+            Throughout the workshop, we use this issue to track your progress. 
+            Every time you comment with \`/done NUMBER\`, the list below gets updated.
+
+            **Note**: Please complete the tasks in your forked repository, but always return to this issue in the original workshop repository to indicate that you’re done. 
+            
+            *Why?* This is due to the technical setup of the workshop. You’re working in your fork, but the issue that tracks your progress is in the original repository. 
+            Since you don’t have write access there, you cannot edit the issue directly (for example, by checking checkboxes). We'll provide links along the way that lead to the correct places to make your life easier. 
+
+            - [x] 0. Find a partner - 🟢 Easy
+            - [x] 1. Created GitHub account - 🟢 Easy
+            - [x] 2. Fork GitHub repo - 🟢 Easy
+            - [ ] 3. Activate issues in your fork - 🟢 Easy
+
+          
+            <img src="https://${context.repo.owner}.github.io/${context.repo.repo}/assets/activate_issue.gif" alt="Activate Issues GIF">
+            
             `.trim();
 
             // 2) Create the issue
-            const issue = await github.rest.issues.create({
+            const issue = await helpers.createIssue({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               title: `@${FORKER} Started participating in the workshop! 🎉`,
@@ -57,21 +84,56 @@ jobs:
               labels: ['newfork']
             });
 
-            // 3) Post the detailed "Next step" instructions as a comment
+            // 3) Unsubscribe the token owner (bot/workflow user) from the issue notifications using REST API
+            try {
+              // Use REST API to unsubscribe from the issue
+              await github.rest.activity.deleteThreadSubscription({
+                thread_id: issue.data.id
+              });
+              
+              console.log(`Successfully unsubscribed token owner from issue #${issue.data.number}`);
+              
+            } catch (error) {
+              // Check if it's a 304 (not modified) which means already unsubscribed
+              if (error.status === 304) {
+                console.log(`Token owner was already unsubscribed from issue #${issue.data.number}`);
+              } else {
+                console.log(`Note: Could not unsubscribe token owner from notifications.`);
+                console.log(`Error: ${error.message}`);
+              }
+              // Continue execution even if unsubscribe fails
+            }
+
+            // 4) Post the detailed "Next step" instructions as a comment
+
+            
             const commentBody = `
-            **Next step:** Please enable "Issues" in your forked repository so we can collaborate and track your progress or questions.
+            ---
+            In any collaboration, some tasks need to be done on your own (e.g., to get some focused work done), which is why you’ll work alone in the first milestones. 
+            Of course, you can always ask your partner or us if something is unclear! 
+            
+            Let’s approach this like a true scientist: step by step, with curiosity, precision, and a healthy dose of skepticism (and maybe a coffee or two). 
+            If you hit an unexpected result, remember—every great discovery started with a question. 
+            Data, documentation, and reproducibility are our friends here.
+            
+            **Next step:**  
+            Please enable “Issues” in your forked repository so we can collaborate, track your progress, and (most importantly) keep a clear record of our scientific journey.
+            
+            To enable issues:
+            
+            1. Open your repository's **Settings**: https://github.com/${FORK_REPO}/settings  
+            2. Scroll down to the **Features** section.  
+            3. Check the box labeled **“Issues”**.  
+            4. When finished, comment here in this issue with \`/done 3\`.
+            
+            If something doesn’t match the documentation or you spot an anomaly, don’t hesitate to ask or to open an issue: https://github.com/${context.repo.owner}/${context.repo.repo}/issues/new
+            In science, there are no silly questions, only hypotheses waiting to be tested. 
+            Let’s keep things reproducible, transparent, and maybe even a bit fun. 
+            Happy experimenting!
 
-            To enable issues in your fork:
-
-            1. Go to your **"Settings"** in your repository: https://github.com/${FORK_REPO}/settings  
-            2. Scroll down to the **"Features"** section.  
-            3. Check the box labeled **"Issues"**.  
-            4. When you’re done, reply with \`/done 3\` below.
-
-            Thank you!
             `.trim();
 
-            await github.rest.issues.createComment({
+            await helpers.createComment({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               issue_number: issue.data.number,

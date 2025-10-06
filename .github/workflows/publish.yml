@@ -2,6 +2,11 @@ on:
   push:
     paths:
         - self-paced-source/**
+        - assets/**
+        - steven-source/**
+        - Makefile
+        - .github/workflows/publish.yml
+        - presentation.Rmd
     branches: main
   registry_package:
     types: [published, updated]
